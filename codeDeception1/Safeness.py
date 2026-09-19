@@ -1,123 +1,255 @@
 import networkx as nx
-import random
 import copy
+import random
 
 class Safeness:
-
-    ###INTRA-EDGE addition always brings a safeness decrease thus it is not considered
-
-    ##INTRA-EDGE DELETION may bring a safeness increase
     @staticmethod
-    def getBestIntraEdgeDeletion(g,targetC):
+    def getBestIntraEdgeAddition(g, targetC):
+        targetC = set(targetC)
+
+        if len(targetC) <= 1:
+            return None, None
+
         induced_subgraph = g.subgraph(targetC)
-        bridges = set(nx.bridges(induced_subgraph))
-        max_value = -float('inf')
-        best_edge = None
+        components = [set(component) for component in nx.connected_components(induced_subgraph)]
 
-        for edge in induced_subgraph.edges:
-            if edge not in bridges and (edge[1], edge[0]) not in bridges:  # Account for undirected edge ordering
-                u, w = edge
+        if len(components) <= 1:
+            return None, None
 
-                # Temporarily remove the edge
-                g.remove_edge(u, w)
+        component_of = {}
+        for idx, component in enumerate(components):
+            for node in component:
+                component_of[node] = idx
 
-                # Compute the number of edges from u and w to nodes in targetC
-                edges_u_to_targetC = sum(1 for neighbor in g.neighbors(u) if neighbor in targetC)
-                edges_w_to_targetC = sum(1 for neighbor in g.neighbors(w) if neighbor in targetC)
+        target_size = len(targetC)
+        denominator = 2 * (target_size - 1)
 
-                # Compute the degrees of u and w
+        candidates = []
+
+        target_nodes = sorted(targetC)
+
+        for i, u in enumerate(target_nodes):
+            comp_u = components[component_of[u]]
+            size_cu = len(comp_u)
+
+            for w in target_nodes[i + 1:]:
+                if g.has_edge(u, w):
+                    continue
+
+                if component_of[u] == component_of[w]:
+                    continue
+
+                comp_w = components[component_of[w]]
+                size_cw = len(comp_w)
+
                 degree_u = g.degree[u]
                 degree_w = g.degree[w]
 
-                # Ensure no division by zero
-                value = 0
-                if degree_u > 1:
-                    value += edges_u_to_targetC / (2 * degree_u * (degree_u - 1))
-                if degree_w > 1:
-                    value += edges_w_to_targetC / (2 * degree_w * (degree_w - 1))
+                external_u = sum(1 for neighbor in g.neighbors(u) if neighbor not in targetC)
+                external_w = sum(1 for neighbor in g.neighbors(w) if neighbor not in targetC)
 
-                # Restore the edge
-                g.add_edge(u, w)
+                penalty_u = 0.0 if degree_u == 0 else external_u / (2 * degree_u * (degree_u + 1))
+                penalty_w = 0.0 if degree_w == 0 else external_w / (2 * degree_w * (degree_w + 1))
 
-                # Update the maximum value and the corresponding edge
-                if value > max_value and value>0:
-                    max_value = value
-                    best_edge = edge
+                gain = 0.0
+                gain += ((size_cu - 1) * size_cw) / denominator
+                gain += ((size_cw - 1) * size_cu) / denominator
+                gain += (size_cw - 1) / denominator
+                gain += (size_cu - 1) / denominator
+                gain -= penalty_u
+                gain -= penalty_w
 
-        return best_edge,max_value
+                candidates.append((Safeness.norm_edge(u, w), gain))
 
-    ###INTER-EDGE addition always brings a safeness increase
+        if not candidates:
+            return None, None
+
+        max_gain = max(gain for _, gain in candidates)
+        threshold = 0.9 * max_gain
+        eligible = [(edge, gain) for edge, gain in candidates if gain >= threshold]
+
+        if not eligible:
+            return None, None
+
+        best_edge, chosen_gain = random.choice(eligible)
+        return best_edge, chosen_gain
+
+
+    ##INTRA-EDGE DELETION may bring a safeness increase
     @staticmethod
-    def getBestInterEdgeAddition(g, targetC):
+    def norm_edge(u, v):
+        return tuple(sorted((u, v)))
+
+    @staticmethod
+    def getBestIntraEdgeDeletion(g, targetC):
+        """Exact safeness gain of deleting a non-bridge intra-community edge.
+
+        For sigma(n) = 1/2 (R(n) - E_in(n))/(|C|-1) + 1/2 E_out(n)/deg(n),
+        deleting a non-bridge edge (u,w) inside C leaves R unchanged, drops
+        E_in(u) and E_in(w) by one each, and drops deg(u), deg(w) by one each:
+
+            delta = 1/(|C|-1)
+                  + 1/2 E_out(u) / (deg(u) (deg(u)-1))
+                  + 1/2 E_out(w) / (deg(w) (deg(w)-1))
+
+        with PRE-deletion degrees and external counts.
+
+        Fixed 2026-09-08. The previous version read the degrees after removing
+        the edge, used the internal rather than the external neighbour count,
+        and omitted the reachability term; it therefore did not compute the
+        change in safeness it was selecting on. Original kept alongside as
+        Safeness.py.orig-buggy-20260908.
+        """
+        targetC = set(targetC)
+        induced_subgraph = g.subgraph(targetC)
+        if induced_subgraph.number_of_edges() == 0:
+            return None, None
+        bridges = {Safeness.norm_edge(*e) for e in nx.bridges(induced_subgraph)}
+        size = len(targetC)
         max_value = -float('inf')
-        best_node = None
+        best_edge = None
 
-        # Step 2: Iterate over nodes in targetC
-        for u in targetC:
-            degree_u = g.degree[u]
-
-            # Skip if degree is zero to avoid division by zero
-            if degree_u == 0:
+        for u, w in induced_subgraph.edges:
+            edge = Safeness.norm_edge(u, w)
+            if edge in bridges:
                 continue
 
-            # Step 3: Count the number of edges from u to nodes in targetC
-            edges_u_to_targetC = sum(1 for neighbor in g.neighbors(u) if neighbor in targetC)
+            value = 1.0 / (size - 1) if size > 1 else 0.0
+            for n in (u, w):
+                deg = g.degree[n]
+                if deg > 1:
+                    e_out = sum(1 for nb in g.neighbors(n) if nb not in targetC)
+                    value += 0.5 * e_out / (deg * (deg - 1))
 
-            # Step 4: Compute the ratio
-            value = edges_u_to_targetC / degree_u
-
-            # Step 5: Update the maximum value and corresponding node
-            if value > max_value and value>0:
+            if value > max_value:
                 max_value = value
-                best_node = u
+                best_edge = edge
 
-        return best_node,max_value
+        if best_edge is None:
+            return None, None
+        return best_edge, max_value
 
     @staticmethod
-    def runSAFDEC(g, targetC, budget, budget_percentage=False):
+    def getBestInterEdgeAddition(g, targetC):
+        max_value = -float("inf")
+        best_nodes = []
+        candidate_nodes_by_u = {}
+
+        for u in targetC:
+            # find external nodes not already connected
+            candidate_nodes = [
+                node for node in g.nodes
+                if node not in targetC and not g.has_edge(u, node)
+            ]
+
+            if not candidate_nodes:
+                continue
+
+            degree_u = g.degree[u]
+            edges_u_to_targetC = sum(1 for neighbor in g.neighbors(u) if neighbor in targetC)
+
+            if degree_u == 0:
+                value = 0.5
+            else:
+                value = edges_u_to_targetC / (2 * degree_u * (degree_u + 1))
+
+            if value > 0 and value > max_value:
+                max_value = value
+                best_nodes = [u]
+                candidate_nodes_by_u = {u: candidate_nodes}
+            elif value > 0 and value == max_value:
+                best_nodes.append(u)
+                candidate_nodes_by_u[u] = candidate_nodes
+
+        if not best_nodes:
+            return None, max_value
+
+        chosen_u = random.choice(best_nodes)
+        chosen_v = random.choice(candidate_nodes_by_u[chosen_u])
+        return Safeness.norm_edge(chosen_u, chosen_v), max_value
+
+    @staticmethod
+    def _run_safdec(g, targetC, budget, budget_percentage=False, allow_intra_add=True):
+        targetC = set(targetC)
+
         # Determine the total budget
         if budget_percentage:
             beta = round(budget * len(targetC))
         else:
             beta = int(budget)
 
-        # Track the remaining budget
         remaining_budget = beta
+        max_intra_first_steps = beta // 2 if allow_intra_add else 0
+        intra_first_steps_used = 0
 
         modified_graph = copy.deepcopy(g)
-
-        edits=[]
+        edits = []
 
         while remaining_budget > 0:
-            # Get the best intra-edge deletion
+            best_added_intra_edge, intra_add_value = (None, None)
+            if allow_intra_add:
+                best_added_intra_edge, intra_add_value = Safeness.getBestIntraEdgeAddition(modified_graph, targetC)
+
             best_intra_edge, intra_value = Safeness.getBestIntraEdgeDeletion(modified_graph, targetC)
+            best_inter_edge, inter_value = Safeness.getBestInterEdgeAddition(modified_graph, targetC)
 
-            # Get the best inter-edge addition
-            best_inter_node, inter_value = Safeness.getBestInterEdgeAddition(modified_graph, targetC)
+            intra_add_value = -float("inf") if intra_add_value is None else intra_add_value
+            intra_value = -float("inf") if intra_value is None else intra_value
+            inter_value = -float("inf") if inter_value is None else inter_value
 
-            # Determine which operation to apply
-            if intra_value > inter_value and best_intra_edge is not None:
-                # Apply the best intra-edge deletion
-                modified_graph.remove_edge(*best_intra_edge)
-                edits.append(("intraD",best_intra_edge))
+            if (
+                allow_intra_add
+                and intra_first_steps_used < max_intra_first_steps
+                and best_added_intra_edge is not None
+                and intra_add_value >= 0
+            ):
+                edge = Safeness.norm_edge(*best_added_intra_edge)
+                edit = ("intraA", edge)
+                modified_graph.add_edge(*edge)
+                edits.append(edit)
+                intra_first_steps_used += 1
                 remaining_budget -= 1
-                #print(f"SAF Deleted intra-edge {best_intra_edge} with value {intra_value}")
-            elif inter_value >= intra_value and best_inter_node is not None:
-                # Apply the best inter-edge addition (find a suitable node to connect)
-                nodes_outside_targetC = [node for node in modified_graph.nodes if node not in targetC]
-                if nodes_outside_targetC:  # Ensure there are nodes outside targetC
-                    random_node = random.choice(nodes_outside_targetC)
-                    modified_graph.add_edge(best_inter_node, random_node)
-                    edits.append(("interA", (best_inter_node, random_node)))
-                    remaining_budget -= 1
-                    #print(f"SAF Added inter-edge from {best_inter_node} to {random_node} with value {inter_value}")
-            else:
-                # No beneficial operation left
-                #print("No further beneficial operations possible.")
-                break
-        return (modified_graph,edits)
+                continue
 
-    def computeSafeness(g,targetC,coms):
+            best_value = max(intra_add_value, intra_value, inter_value)
+
+            if best_value == -float("inf"):
+                break
+
+            if allow_intra_add and best_value == intra_add_value and best_added_intra_edge is not None:
+                edge = Safeness.norm_edge(*best_added_intra_edge)
+                edit = ("intraA", edge)
+                modified_graph.add_edge(*edge)
+                edits.append(edit)
+                remaining_budget -= 1
+            elif best_value == intra_value and best_intra_edge is not None:
+                edge = Safeness.norm_edge(*best_intra_edge)
+                edit = ("intraD", edge)
+                modified_graph.remove_edge(*edge)
+                edits.append(edit)
+                remaining_budget -= 1
+            elif best_value == inter_value and best_inter_edge is not None:
+                edge = Safeness.norm_edge(*best_inter_edge)
+                edit = ("interA", edge)
+                modified_graph.add_edge(*edge)
+                edits.append(edit)
+                remaining_budget -= 1
+            else:
+                break
+
+        return modified_graph, edits
+
+    @staticmethod
+    def runSAFDEC(g, targetC, budget, budget_percentage=False):
+        return Safeness._run_safdec(g, targetC, budget, budget_percentage=budget_percentage, allow_intra_add=True)
+
+    @staticmethod
+    def runSAFDEC_noIntraAdd(g, targetC, budget, budget_percentage=False):
+        return Safeness._run_safdec(g, targetC, budget, budget_percentage=budget_percentage, allow_intra_add=False)
+
+    @staticmethod
+    def computeSafeness(g, targetC, coms):
+        targetC = set(targetC)
         safeness = {}
 
         # Precompute the subgraph induced by targetC for reachability

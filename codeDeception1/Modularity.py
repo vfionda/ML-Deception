@@ -5,6 +5,7 @@ class Modularity:
 
 ###INTRA-EDGE addition
 
+    @staticmethod
     def getBestIntraEdgeAddition(g, coms, targetC):
         # Convert communities to partition format required by `modularity`
         #partition = {node: idx for idx, community in enumerate(coms) for node in community}
@@ -55,6 +56,7 @@ class Modularity:
 ###INTER-EDGE addition
 
 
+    @staticmethod
     def getBestInterEdgeAddition(g, coms, targetC):
         community_degrees = {
             i: sum(g.degree[node] for node in com) for i, com in enumerate(coms)
@@ -113,6 +115,7 @@ class Modularity:
 
 ###INTER-EDGE deletion
 
+    @staticmethod
     def getBestInterEdgeDeletion(g, coms, targetC):
         # Convert communities to partition format required by `modularity`
         partition = {node: idx for idx, community in enumerate(coms) for node in community}
@@ -169,6 +172,7 @@ class Modularity:
 
 ###INTRA-EDGE deletion
 
+    @staticmethod
     def getBestIntraEdgeDeletion(g, coms, targetC):
         # Convert communities to partition format required by `modularity`
         #partition = {node: idx for idx, community in enumerate(coms) for node in community}
@@ -216,64 +220,76 @@ class Modularity:
 
         return selected_com[0], deletable_edge, modularity_loss
 
+    @staticmethod
     def runModularity(g, targetC, coms, budget, budget_percentage=False):
-        # Determine the total budget
         if budget_percentage:
             beta = round(budget * len(targetC))
         else:
             beta = int(budget)
 
-        # Track the remaining budget
         remaining_budget = beta
-
         modified_graph = copy.deepcopy(g)
 
         edits = []
+        applied_edits = set()  # (op, normalized_edge)
+        used_edges = set()  # normalized_edge only, if you want to forbid any reuse
 
         while remaining_budget > 0:
-            print(remaining_budget)
-            
-            # Get the best intra-edge deletion
             selected_com, best_intra_edge, intraD_value = Modularity.getBestIntraEdgeDeletion(modified_graph, coms, targetC)
-
-            # Get the best inter-edge deletion
-            bestD_com_pair, bestD_inter_edge, interD_value = Modularity.getBestInterEdgeDeletion(modified_graph, coms, targetC)
-
-            # Get the best inter-edge addition
+            bestD_com_pair, bestD_inter_edge, interD_value = Modularity.getBestInterEdgeDeletion(modified_graph, coms,
+                                                                                             targetC)
             bestA_node_pair, interA_value = Modularity.getBestInterEdgeAddition(modified_graph, coms, targetC)
-
-            # Get the best intra-edge addition
             bestIA_com, bestIA_node_pair, intraA_value = Modularity.getBestIntraEdgeAddition(modified_graph, coms, targetC)
 
-            maximum_value = max(value for value in [intraD_value, interD_value, interA_value, intraA_value] if value is not None)
-
-            # Determine which operation to apply
-            if maximum_value == intraD_value and best_intra_edge is not None:
-                # Apply the best intra-edge deletion
-                modified_graph.remove_edge(*best_intra_edge)
-                edits.append(("intraD", best_intra_edge))
-                remaining_budget -= 1
-                #print(f"Deleted intra-edge {best_intra_edge} with value {intraD_value}")
-            elif maximum_value == interD_value and bestD_inter_edge is not None:
-                # Apply the best inter-edge deletion
-                modified_graph.remove_edge(*bestD_inter_edge)
-                edits.append(("interD", bestD_inter_edge))
-                remaining_budget -= 1
-                #print(f"Deleted inter-edge {bestD_inter_edge} with value {interD_value}")
-            elif maximum_value == interA_value and bestA_node_pair is not None:
-                # Apply the best inter-edge addition (find a suitable node to connect)
-                modified_graph.add_edge(bestA_node_pair[0], bestA_node_pair[1])
-                edits.append(("interA", (bestA_node_pair[0], bestA_node_pair[1])))
-                remaining_budget -= 1
-                #print(f"Added inter-edge from {bestA_node_pair[0]} to {bestA_node_pair[1]} with value {interA_value}")
-            elif maximum_value == intraA_value and bestIA_node_pair is not None:
-                # Apply the best inter-edge addition (find a suitable node to connect)
-                modified_graph.add_edge(bestIA_node_pair[0], bestIA_node_pair[1])
-                edits.append(("intraA", (bestIA_node_pair[0], bestIA_node_pair[1])))
-                remaining_budget -= 1
-                #print(f"Added intra-edge from {bestIA_node_pair[0]} to {bestIA_node_pair[1]} with value {intraA_value}")
-            else:
-                # No beneficial operation left
-                #print("No further beneficial operations possible.")
+            candidate_values = [v for v in [intraD_value, interD_value, interA_value, intraA_value] if v is not None]
+            if not candidate_values:
                 break
-        return (modified_graph,edits)
+
+            maximum_value = max(candidate_values)
+
+            applied = False
+
+            if maximum_value == intraD_value and best_intra_edge is not None:
+                edge = tuple(sorted(best_intra_edge))
+                if edge not in used_edges and modified_graph.has_edge(*edge):
+                    modified_graph.remove_edge(*edge)
+                    edits.append(("intraD", edge))
+                    applied_edits.add(("intraD", edge))
+                    used_edges.add(edge)
+                    remaining_budget -= 1
+                    applied = True
+
+            elif maximum_value == interD_value and bestD_inter_edge is not None:
+                edge = tuple(sorted(bestD_inter_edge))
+                if edge not in used_edges and modified_graph.has_edge(*edge):
+                    modified_graph.remove_edge(*edge)
+                    edits.append(("interD", edge))
+                    applied_edits.add(("interD", edge))
+                    used_edges.add(edge)
+                    remaining_budget -= 1
+                    applied = True
+
+            elif maximum_value == interA_value and bestA_node_pair is not None:
+                edge = tuple(sorted(bestA_node_pair))
+                if edge not in used_edges and not modified_graph.has_edge(*edge):
+                    modified_graph.add_edge(*edge)
+                    edits.append(("interA", edge))
+                    applied_edits.add(("interA", edge))
+                    used_edges.add(edge)
+                    remaining_budget -= 1
+                    applied = True
+
+            elif maximum_value == intraA_value and bestIA_node_pair is not None:
+                edge = tuple(sorted(bestIA_node_pair))
+                if edge not in used_edges and not modified_graph.has_edge(*edge):
+                    modified_graph.add_edge(*edge)
+                    edits.append(("intraA", edge))
+                    applied_edits.add(("intraA", edge))
+                    used_edges.add(edge)
+                    remaining_budget -= 1
+                    applied = True
+
+            if not applied:
+                break
+
+        return (modified_graph, edits)

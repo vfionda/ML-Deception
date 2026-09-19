@@ -1,6 +1,6 @@
 import networkx as nx
-from .Safeness import Safeness
-from .Modularity import Modularity
+from Safeness import Safeness
+from Modularity import Modularity
 
 class Utils:
 
@@ -14,34 +14,49 @@ class Utils:
 
     @staticmethod
     def getDeceptionScore(coms, target_community, g):
-        number_communities = len(coms)
-        # number of the targetCommunity members in the various communities
+        target_community = set(target_community)
+
+        #intersezione tra target e le comunita della com structure
         member_for_community = [
             sum(node in target_community for node in community)
             for community in coms
         ]
 
-        # ratio of the targetCommunity members in the various communities
-        ratio_community_members = [
-            members_for_c / len(com) for members_for_c, com in zip(member_for_community, coms)
+        intersecting = [
+            (community, members)
+            for community, members in zip(coms, member_for_community)
+            if members > 0
         ]
 
-        ##In how many commmunities are the members of the target spread?
-        spread_members = sum([1 if mc > 0 else 0 for mc in member_for_community])
+        #if not intersecting:
+        #    return 0.0
 
-        second_part = 1 / 2 * ((spread_members - 1) / number_communities) + 1 / 2 * (
-                    1 - sum(ratio_community_members) / spread_members)
-        #####
+        # Recall R(C_i, C) = |C_i ∩ C| / |C|
+        recall_values = [
+            members / len(target_community)
+            for _, members in intersecting
+        ]
+
+        # Precision P(C_i, C) = |C_i ∩ C| / |C_i|
+        precision_values = [
+            members / len(community)
+            for community, members in intersecting
+        ]
+
+        second_part = (
+                0.5 * (1 - max(recall_values)) +
+                0.5 * (1 - sum(precision_values) / len(precision_values))
+        )
 
         num_components = nx.number_connected_components(
-            g.subgraph(target_community))  # induced subraph only on target community nodes
+            g.subgraph(target_community)
+        )
 
         if len(target_community) > 1:
             first_part = 1 - ((num_components - 1) / (len(target_community) - 1))
         else:
-            first_part = 0  # Default to 0 if target_community has fewer than 2 nodes
+            first_part = 1.0  # reachability is trivial for a singleton
 
-        dec_score = first_part * second_part
-        return dec_score
+        return first_part * second_part
 
 
