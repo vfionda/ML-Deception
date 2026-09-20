@@ -1,0 +1,165 @@
+--- Deception Evaluation Metadata ---
+Dataset Name        : dkpol
+Deception Algorithm : SAFDEC
+Community Algorithm : pmm_l
+Budget              : 10
+Number of Runs      : 10
+Community Detection Execution Time (one execution)   : 0.8691s
+-------------------------------------
+
+
+===== Global Deception Summary =====
+
+>> Method: deception_random
+   Community with MIN deception: 3 (0.1949)
+   Community with MAX deception: 0 (0.5687)
+   Mean deception across all communities: 0.3948
+
+>> Method: deception_after_mod
+   Community with MIN deception: 7 (0.2390)
+   Community with MAX deception: 1 (0.6294)
+   Mean deception across all communities: 0.4200
+
+>> Method: deception_after_saf
+   Community with MIN deception: 8 (0.2218)
+   Community with MAX deception: 0 (0.5970)
+   Mean deception across all communities: 0.4182
+
+
+===== Global Modularity Summary =====
+
+>> Method: modularity_random
+   Community with MIN modularity: 4 (0.0410)
+   Community with MAX modularity: 6 (0.0542)
+   Mean modularity across all communities: 0.0486
+
+>> Method: modularity_after_mod
+   Community with MIN modularity: 5 (0.0339)
+   Community with MAX modularity: 4 (0.0534)
+   Mean modularity across all communities: 0.0474
+
+>> Method: modularity_after_saf
+   Community with MIN modularity: 4 (0.0428)
+   Community with MAX modularity: 7 (0.0539)
+   Mean modularity across all communities: 0.0480
+
+
+===== Global Execution Time Summary =====
+
+>> Method: time_random
+   Mean execution time across all communities: 0.3273
+
+>> Method: time_mod
+   Mean execution time across all communities: 21.8858
+
+>> Method: time_saf
+   Mean execution time across all communities: 2.8299
+
+
+===== Global ARI Metrics Summary =====
+
+>> Method: ari_gen_random
+   Community with MIN ari metrics: 4 (0.2896)
+   Community with MAX ari metrics: 8 (0.5069)
+   Mean ari metrics across all communities: 0.3686
+
+>> Method: ari_gen_mod
+   Community with MIN ari metrics: 4 (0.2404)
+   Community with MAX ari metrics: 8 (0.4968)
+   Mean ari metrics across all communities: 0.3425
+
+>> Method: ari_gen_saf
+   Community with MIN ari metrics: 3 (0.2942)
+   Community with MAX ari metrics: 8 (0.4793)
+   Mean ari metrics across all communities: 0.3552
+
+>> Method: ari_spec_random
+   Community with MIN ari metrics: 4 (0.2722)
+   Community with MAX ari metrics: 8 (0.6322)
+   Mean ari metrics across all communities: 0.3752
+
+>> Method: ari_spec_mod
+   Community with MIN ari metrics: 4 (0.2413)
+   Community with MAX ari metrics: 8 (0.6810)
+   Mean ari metrics across all communities: 0.3594
+
+>> Method: ari_spec_saf
+   Community with MIN ari metrics: 2 (0.2704)
+   Community with MAX ari metrics: 8 (0.6312)
+   Mean ari metrics across all communities: 0.3644
+
+
+===== Global NMI Metrics Summary =====
+
+>> Method: nmi_gen_random
+   Community with MIN nmi metrics: 0 (0.3689)
+   Community with MAX nmi metrics: 8 (0.5599)
+   Mean nmi metrics across all communities: 0.4313
+
+>> Method: nmi_gen_mod
+   Community with MIN nmi metrics: 4 (0.3248)
+   Community with MAX nmi metrics: 8 (0.5750)
+   Mean nmi metrics across all communities: 0.4093
+
+>> Method: nmi_gen_saf
+   Community with MIN nmi metrics: 3 (0.3837)
+   Community with MAX nmi metrics: 8 (0.5327)
+   Mean nmi metrics across all communities: 0.4218
+
+>> Method: nmi_spec_random
+   Community with MIN nmi metrics: 4 (0.3533)
+   Community with MAX nmi metrics: 8 (0.7450)
+   Mean nmi metrics across all communities: 0.4413
+
+>> Method: nmi_spec_mod
+   Community with MIN nmi metrics: 4 (0.3264)
+   Community with MAX nmi metrics: 8 (0.7827)
+   Mean nmi metrics across all communities: 0.4295
+
+>> Method: nmi_spec_saf
+   Community with MIN nmi metrics: 3 (0.3404)
+   Community with MAX nmi metrics: 8 (0.7318)
+   Mean nmi metrics across all communities: 0.4343
+
+
+===== Global Delta Summary (vs Random) =====
+
+>> Deception Delta (SAF - Random)
+   Community with MIN delta: 8 (-0.0437)
+   Community with MAX delta: 7 (0.0576)
+   Mean delta across all communities: 0.0234
+
+>> Deception Delta (MOD - Random)
+   Community with MIN delta: 7 (-0.1377)
+   Community with MAX delta: 3 (0.2141)
+   Mean delta across all communities: 0.0252
+
+>> Time Delta (SAF - Random)
+   Mean delta across all communities: 2.5027
+
+>> Time Delta (MOD - Random)
+   Mean delta across all communities: 21.5586
+
+>> ARI General Delta (SAF - Random)
+   Mean delta across all communities: -0.0135
+
+>> ARI General Delta (MOD - Random)
+   Mean delta across all communities: -0.0261
+
+>> ARI Target Delta (SAF - Random)
+   Mean delta across all communities: -0.0108
+
+>> ARI Target Delta (MOD - Random)
+   Mean delta across all communities: -0.0158
+
+>> NMI General Delta (SAF - Random)
+   Mean delta across all communities: -0.0095
+
+>> NMI General Delta (MOD - Random)
+   Mean delta across all communities: -0.0220
+
+>> NMI Target Delta (SAF - Random)
+   Mean delta across all communities: -0.0071
+
+>> NMI Target Delta (MOD - Random)
+   Mean delta across all communities: -0.0119
